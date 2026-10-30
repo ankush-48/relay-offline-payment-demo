@@ -1,0 +1,4 @@
+services:
+  relay:
+    environment:
+      RELAY_DEMO_READ_ONLY: "true"

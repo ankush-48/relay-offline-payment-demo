@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: relay-offline-payment-demo
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    envVars:
+      - key: RELAY_DEMO_READ_ONLY
+        value: "true"
+      - key: H2_CONSOLE_ENABLED
+        value: "false"
+      - key: SESSION_COOKIE_SECURE
+        value: "true"
+      - key: DB_URL
+        value: "jdbc:h2:mem:relaydb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE"
