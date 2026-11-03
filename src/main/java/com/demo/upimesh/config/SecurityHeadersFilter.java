@@ -18,6 +18,19 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
         response.setHeader("X-Frame-Options", "DENY");
         response.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
         response.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+        response.setHeader("Content-Security-Policy",
+                "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; "
+                        + "form-action 'self'; img-src 'self' data: blob:; "
+                        + "font-src 'self' https://fonts.gstatic.com data:; "
+                        + "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+                        + "script-src 'self' 'unsafe-inline'; connect-src 'self'; "
+                        + "manifest-src 'self'; worker-src 'self' blob:");
+        if (request.getRequestURI().startsWith("/api/")) {
+            response.setHeader("Cache-Control", "no-store");
+        }
+        if ("https".equalsIgnoreCase(request.getHeader("X-Forwarded-Proto"))) {
+            response.setHeader("Strict-Transport-Security", "max-age=31536000");
+        }
         filterChain.doFilter(request, response);
     }
 }
