@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="560" viewBox="0 0 1440 560" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1440" y2="560" gradientUnits="userSpaceOnUse"><stop stop-color="#090D1B"/><stop offset=".55" stop-color="#15142B"/><stop offset="1" stop-color="#09262D"/></linearGradient>
+    <linearGradient id="accent" x1="78" y1="160" x2="665" y2="474" gradientUnits="userSpaceOnUse"><stop stop-color="#A78BFA"/><stop offset=".53" stop-color="#48D9D0"/><stop offset="1" stop-color="#5B8CFF"/></linearGradient>
+    <linearGradient id="card" x1="815" y1="101" x2="1337" y2="475" gradientUnits="userSpaceOnUse"><stop stop-color="#1B223A"/><stop offset="1" stop-color="#101B2B"/></linearGradient>
+    <linearGradient id="bar" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#55E5D3"/><stop offset="1" stop-color="#7967F8"/></linearGradient>
+    <radialGradient id="glow" cx="0" cy="0" r="1" gradientTransform="matrix(0 335 -420 0 1188 110)" gradientUnits="userSpaceOnUse"><stop stop-color="#31BFB0" stop-opacity=".3"/><stop offset="1" stop-color="#31BFB0" stop-opacity="0"/></radialGradient>
+    <pattern id="grid" width="36" height="36" patternUnits="userSpaceOnUse"><path d="M36 0H0v36" stroke="#AAB6D1" stroke-opacity=".055"/></pattern>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="24" stdDeviation="24" flood-color="#000" flood-opacity=".38"/></filter>
+  </defs>
+  <rect width="1440" height="560" rx="30" fill="url(#bg)"/>
+  <rect width="1440" height="560" rx="30" fill="url(#grid)"/>
+  <rect width="1440" height="560" rx="30" fill="url(#glow)"/>
+  <circle cx="138" cy="82" r="4" fill="#58DFD0"/><circle cx="156" cy="82" r="4" fill="#A78BFA"/><circle cx="174" cy="82" r="4" fill="#6E84FF"/>
+  <text x="196" y="89" fill="#B9C4D9" font-family="Arial,sans-serif" font-size="15" font-weight="700" letter-spacing="3">RELAY / PRODUCT OVERVIEW</text>
+  <text x="92" y="205" fill="#F5F7FF" font-family="Arial,sans-serif" font-size="56" font-weight="800" letter-spacing="-2">Payments keep moving.</text>
+  <text x="92" y="270" fill="url(#accent)" font-family="Arial,sans-serif" font-size="56" font-weight="800" letter-spacing="-2">Even when the network doesn’t.</text>
+  <text x="96" y="326" fill="#B7C2D7" font-family="Arial,sans-serif" font-size="20">An offline-first payment network simulator</text>
+  <text x="96" y="356" fill="#B7C2D7" font-family="Arial,sans-serif" font-size="20">with an encrypted virtual mesh and demo ledger.</text>
+  <rect x="94" y="405" width="212" height="48" rx="24" fill="url(#accent)"/>
+  <text x="126" y="435" fill="#0B1220" font-family="Arial,sans-serif" font-size="15" font-weight="800" letter-spacing=".5">LIVE INTERACTIVE DEMO</text>
+  <text x="96" y="493" fill="#77859F" font-family="Arial,sans-serif" font-size="14" letter-spacing="1.2">SIMULATED ONLY  ·  NO BANK CONNECTION  ·  NO REAL MONEY</text>
+  <g filter="url(#shadow)">
+    <rect x="793" y="113" width="552" height="356" rx="24" fill="url(#card)" stroke="#53617D" stroke-opacity=".65"/>
+    <path d="M794 168h550" stroke="#53617D" stroke-opacity=".4"/>
+    <rect x="822" y="133" width="22" height="22" rx="7" fill="url(#accent)"/><text x="858" y="150" fill="#E9EEFB" font-family="Arial,sans-serif" font-size="15" font-weight="700" letter-spacing="1.4">RELAY</text>
+    <rect x="1223" y="131" width="88" height="24" rx="12" fill="#193A3C"/><circle cx="1239" cy="143" r="4" fill="#4DDFB8"/><text x="1250" y="147" fill="#9CE9D7" font-family="Arial,sans-serif" font-size="10" font-weight="700">DEMO LIVE</text>
+    <text x="824" y="201" fill="#74839F" font-family="Arial,sans-serif" font-size="10" font-weight="700" letter-spacing="1.4">YOUR TEMPORARY WORKSPACE</text>
+    <text x="824" y="240" fill="#F6F7FF" font-family="Arial,sans-serif" font-size="30" font-weight="800">₹10,000</text>
+    <text x="1001" y="239" fill="#8593AD" font-family="Arial,sans-serif" font-size="12">SIMULATED BALANCE</text>
+    <rect x="824" y="264" width="300" height="168" rx="15" fill="#111A2A" stroke="#303D58"/>
+    <text x="844" y="291" fill="#DDE5F6" font-family="Arial,sans-serif" font-size="12" font-weight="700">PAYMENT FLOW</text>
+    <text x="844" y="312" fill="#77859F" font-family="Arial,sans-serif" font-size="10">Local request → encrypted packet → demo result</text>
+    <path d="M852 397h242" stroke="#63708A" stroke-opacity=".45"/>
+    <rect x="858" y="365" width="22" height="32" rx="7" fill="#7467EE"/><rect x="892" y="345" width="22" height="52" rx="7" fill="#8974F3"/><rect x="926" y="372" width="22" height="25" rx="7" fill="#48CFC0"/><rect x="960" y="333" width="22" height="64" rx="7" fill="#7666E8"/><rect x="994" y="353" width="22" height="44" rx="7" fill="#49D1BF"/><rect x="1028" y="341" width="22" height="56" rx="7" fill="#8B76F0"/><rect x="1062" y="361" width="22" height="36" rx="7" fill="#49CDBE"/>
+    <rect x="1143" y="264" width="174" height="168" rx="15" fill="#111A2A" stroke="#303D58"/>
+    <text x="1163" y="291" fill="#DDE5F6" font-family="Arial,sans-serif" font-size="12" font-weight="700">NETWORK</text>
+    <circle cx="1171" cy="326" r="6" fill="#4DDFB8"/><text x="1187" y="330" fill="#AEBBD2" font-family="Arial,sans-serif" font-size="11">Request queued</text>
+    <circle cx="1171" cy="359" r="6" fill="#A78BFA"/><text x="1187" y="363" fill="#AEBBD2" font-family="Arial,sans-serif" font-size="11">Packet relayed</text>
+    <circle cx="1171" cy="392" r="6" fill="#55D8CB"/><text x="1187" y="396" fill="#AEBBD2" font-family="Arial,sans-serif" font-size="11">Demo settled</text>
+    <rect x="824" y="444" width="493" height="1" fill="#53617D" fill-opacity=".45"/>
+    <text x="824" y="462" fill="#7887A1" font-family="Arial,sans-serif" font-size="10">PREVIEW ILLUSTRATION · UI DATA IS SIMULATED</text>
+  </g>
+  <circle cx="1300" cy="92" r="3" fill="#55D8CB" opacity=".7"/><circle cx="1350" cy="512" r="4" fill="#A78BFA" opacity=".7"/><circle cx="744" cy="497" r="3" fill="#53D6C7" opacity=".55"/>
+</svg>
