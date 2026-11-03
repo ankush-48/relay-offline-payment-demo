@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * In-memory idempotency cache. In production this would be Redis with SETNX +
@@ -34,9 +35,20 @@ public class IdempotencyService {
      * someone else already claimed it (i.e. the packet is a duplicate).
      */
     public boolean claim(String packetHash) {
+        if (packetHash == null || packetHash.isBlank()) {
+            throw new IllegalArgumentException("Packet hash is required");
+        }
         Instant now = Instant.now();
-        Instant prev = seen.putIfAbsent(packetHash, now);
-        return prev == null;
+        Instant cutoff = now.minusSeconds(Math.max(1, ttlSeconds));
+        AtomicBoolean claimed = new AtomicBoolean();
+        seen.compute(packetHash, (ignored, previous) -> {
+            if (previous == null || previous.isBefore(cutoff)) {
+                claimed.set(true);
+                return now;
+            }
+            return previous;
+        });
+        return claimed.get();
     }
 
     public int size() {
@@ -46,7 +58,7 @@ public class IdempotencyService {
     /** Periodically evict entries past their TTL so the map doesn't grow forever. */
     @Scheduled(fixedDelay = 60_000)
     public void evictExpired() {
-        Instant cutoff = Instant.now().minusSeconds(ttlSeconds);
+        Instant cutoff = Instant.now().minusSeconds(Math.max(1, ttlSeconds));
         seen.entrySet().removeIf(e -> e.getValue().isBefore(cutoff));
     }
 

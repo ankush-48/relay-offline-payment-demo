@@ -37,6 +37,14 @@ public class BridgeIngestionService {
     private long maxAgeSeconds;
 
     public IngestResult ingest(MeshPacket packet, String bridgeNodeId, int hopCount) {
+        if (packet == null || packet.getCiphertext() == null
+                || packet.getCiphertext().isBlank() || packet.getCiphertext().length() > 16_384) {
+            return IngestResult.invalid("?", "invalid_packet");
+        }
+        if (bridgeNodeId == null || !bridgeNodeId.matches("[A-Za-z0-9._:-]{1,80}")
+                || hopCount < 0 || hopCount > 5) {
+            return IngestResult.invalid("?", "invalid_bridge_metadata");
+        }
         try {
             String packetHash = crypto.hashCiphertext(packet.getCiphertext());
 
@@ -77,8 +85,8 @@ public class BridgeIngestionService {
             return IngestResult.settled(packetHash, tx);
 
         } catch (Exception e) {
-            log.error("Ingestion error: {}", e.getMessage(), e);
-            return IngestResult.invalid("?", "internal_error: " + e.getMessage());
+            log.error("Packet ingestion failed", e);
+            return IngestResult.invalid("?", "internal_error");
         }
     }
 

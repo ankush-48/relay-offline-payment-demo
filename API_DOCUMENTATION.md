@@ -54,7 +54,7 @@ Content-Type: application/json
 {"senderVpa":"alice@demo","receiverVpa":"bob@demo","amount":25.00,"ttl":5,"startDevice":"phone-alice"}
 ```
 
-A valid request returns `packetId`, `ciphertextPreview`, `ttl`, and `injectedAt`. Sender and recipient must exist, be distinct, and amount must be positive. Public mode additionally requires both accounts to belong to the current workspace, limits transfers to ₹500 and rate-limits writes. `pin` is accepted for compatibility but is neither authenticated nor verified.
+A valid request returns `packetId`, `ciphertextPreview`, `ttl`, and `injectedAt`. Sender and recipient must exist and be distinct. Amounts must be positive, fit the ledger's two-decimal precision, and, in public mode, be no more than ₹500. Public mode also requires both accounts to belong to the current workspace and rate-limits writes. `pin` is accepted for compatibility but is neither authenticated nor verified.
 
 Run the demo stages:
 
@@ -67,7 +67,7 @@ The hosted UI uses `/api/mesh/gossip/{packetId}` and `/api/mesh/flush/{packetId}
 
 The flush response lists an outcome for each bridge upload. Outcomes include `SETTLED`, `REJECTED`, `DUPLICATE_DROPPED`, and `INVALID`. `SETTLED` means only that the local simulated ledger updated. `REJECTED` includes insufficient balance. `INVALID` covers invalid ciphertext, stale/future packets, and processing errors.
 
-Direct ingestion accepts the `MeshPacket` JSON and optional headers `X-Bridge-Node-Id` and `X-Hop-Count`:
+Direct ingestion accepts a `MeshPacket` JSON body and optional headers `X-Bridge-Node-Id` and `X-Hop-Count`. Ciphertext is limited to 16 KB, bridge IDs to 80 safe characters, and hop count to 0–5:
 
 ```http
 POST /api/bridge/ingest
@@ -84,4 +84,4 @@ Default local storage is file-backed H2. Override `DB_URL`, `DB_USERNAME`, and `
 
 ## Errors and safety
 
-Validation errors from demo endpoints use HTTP 400 with a JSON `error` message. Public demo writes can return HTTP 429 with a `Retry-After` header. `/api/bridge/ingest` returns an ingestion result record with an outcome/reason locally and is disabled in public mode. Server errors and transport failures are not settlement confirmations. Public session scoping and rate limits are for an educational demo, not production authorization or real payment processing.
+Validation errors from demo endpoints use HTTP 400 with a JSON `error` message. Public demo writes can return HTTP 429 with a `Retry-After` header. `/api/bridge/ingest` returns an ingestion result record with an outcome/reason locally and is disabled in public mode. Unexpected processing failures return a generic error reason; server logs retain diagnostic detail. Server errors and transport failures are not settlement confirmations. Public session scoping and in-process rate limits are for an educational single-instance demo, not production authorization or real payment processing.

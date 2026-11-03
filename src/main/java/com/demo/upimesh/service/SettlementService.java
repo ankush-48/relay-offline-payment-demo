@@ -35,6 +35,19 @@ public class SettlementService {
     @Transactional
     public Transaction settle(PaymentInstruction instruction, String packetHash,
                               String bridgeNodeId, int hopCount) {
+        if (instruction == null || instruction.getAmount() == null) {
+            throw new IllegalArgumentException("Payment instruction and amount are required");
+        }
+        if (instruction.getSenderVpa() == null || instruction.getReceiverVpa() == null
+                || instruction.getSenderVpa().isBlank() || instruction.getReceiverVpa().isBlank()
+                || instruction.getSenderVpa().equals(instruction.getReceiverVpa())) {
+            throw new IllegalArgumentException("Sender and recipient must be different valid accounts");
+        }
+
+        BigDecimal amount = instruction.getAmount();
+        if (amount.signum() <= 0 || amount.scale() > 2 || amount.precision() - amount.scale() > 17) {
+            throw new IllegalArgumentException("Amount must be positive and fit the ledger's two-decimal precision");
+        }
 
         Account sender = accounts.findById(instruction.getSenderVpa())
                 .orElseThrow(() -> new IllegalArgumentException(
@@ -43,11 +56,6 @@ public class SettlementService {
         Account receiver = accounts.findById(instruction.getReceiverVpa())
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Unknown receiver VPA: " + instruction.getReceiverVpa()));
-
-        BigDecimal amount = instruction.getAmount();
-        if (amount.signum() <= 0) {
-            throw new IllegalArgumentException("Amount must be positive");
-        }
 
         if (sender.getBalance().compareTo(amount) < 0) {
             log.warn("Insufficient balance: {} has ₹{}, tried to send ₹{}",
