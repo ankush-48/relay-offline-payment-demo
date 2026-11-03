@@ -175,7 +175,7 @@ The Render configuration uses an in-memory H2 database. Demo workspaces, session
 | [Demo walkthrough](DEMO_SCRIPT.md) | Suggested recruiter demo and talking points |
 | [Setup guide](SETUP_GUIDE.md) | Local and Docker setup |
 
-## Talking point for an interview
+## Talking point
 
 > “I built Relay to make offline payment handling observable. It stores a simulated request on the device, encrypts it into a packet, routes it through virtual peers, then validates and records a demo result on the server. The key design distinction is that a queued request is not a settled payment.”
 
