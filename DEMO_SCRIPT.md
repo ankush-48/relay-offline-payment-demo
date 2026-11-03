@@ -1,6 +1,6 @@
-# Demo script (about 5 minutes)
 
-## 1. Introduce the scope (30 seconds)
+
+## 1. scope 
 
 “Relay is an offline-first payment **simulator**. It demonstrates how a payment intent can wait locally, travel as an encrypted packet through virtual peers, and receive a server result after a bridge reconnects. It does not move money or connect to UPI.”
 
@@ -18,13 +18,6 @@ Open **Send money** and create a small request from your workspace wallet to one
 
 To demonstrate queued behavior, use browser offline mode before submitting a request, then return online and choose **Sync queue**. Point out the retry timing if the server is temporarily unavailable. An offline request is not a completed or guaranteed payment.
 
-## 5. Close with engineering decisions (60 seconds)
+## 5.engineering decisions (60 seconds)
 
 Describe the AES-GCM payload and RSA-OAEP wrapped key, packet freshness validation, ciphertext-hash idempotency, and database transaction around debit/credit. Mention the automated tests for duplicate deliveries, tampering, insufficient funds, invalid amounts, and stale packets. Be clear that the idempotency cache is per process and the H2 database is a local demo choice.
-
-## Interview prompts
-
-- Why use a unique packet hash and what does the database uniqueness constraint add?
-- Why can “queued offline” not promise settlement?
-- What changes for multiple backend instances? (A distributed idempotency store, durable packet/ledger state, bridge authentication, and conflict-safe processing.)
-- How would real offline signing and funds reservation change the trust model?
