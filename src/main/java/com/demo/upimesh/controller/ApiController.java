@@ -10,6 +10,7 @@ import jakarta.servlet.http.HttpSession;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.util.*;
 
 /**
@@ -28,6 +29,9 @@ public class ApiController {
     @Value("${relay.demo.read-only:false}")
     private boolean readOnlyPreview;
 
+    @Value("${relay.demo.public-mode:false}")
+    private boolean publicDemo;
+
     @Autowired private ServerKeyHolder serverKey;
     @Autowired private DemoService demo;
     @Autowired private MeshSimulatorService mesh;
@@ -37,16 +41,23 @@ public class ApiController {
     @Autowired private IdempotencyService idempotency;
     @Autowired private DemoOtpService demoOtp;
     @Autowired private DemoUserRepository demoUsers;
+    @Autowired private PublicDemoRateLimiter rateLimiter;
 
     @GetMapping("/health")
     public Map<String, String> health() {
-        return Map.of("status", "UP", "mode", readOnlyPreview ? "READ_ONLY_PREVIEW" : "SIMULATION",
-                "readOnly", Boolean.toString(readOnlyPreview));
+        String mode = readOnlyPreview ? "READ_ONLY_PREVIEW" : publicDemo ? "PUBLIC_SHARED_SANDBOX" : "SIMULATION";
+        return Map.of("status", "UP", "mode", mode,
+                "readOnly", Boolean.toString(readOnlyPreview),
+                "sharedDemo", Boolean.toString(publicDemo),
+                "maxTransferAmount", "500.00");
     }
 
     @PostMapping("/auth/request-otp")
-    public ResponseEntity<?> requestOtp(@RequestBody OtpRequest request) {
+    public ResponseEntity<?> requestOtp(@RequestBody OtpRequest request, HttpSession session) {
         if (readOnlyPreview) return previewLocked();
+        if (publicDemo) return guestOnly();
+        ResponseEntity<?> limited = rateLimit(session, "otp-request", 3, 100, Duration.ofMinutes(5));
+        if (limited != null) return limited;
         try {
             return ResponseEntity.ok(demoOtp.request(request.contact));
         } catch (IllegalArgumentException e) {
@@ -57,6 +68,9 @@ public class ApiController {
     @PostMapping("/auth/verify-otp")
     public ResponseEntity<?> verifyOtp(@RequestBody OtpVerifyRequest request, HttpSession session) {
         if (readOnlyPreview) return previewLocked();
+        if (publicDemo) return guestOnly();
+        ResponseEntity<?> limited = rateLimit(session, "otp-verify", 6, 200, Duration.ofMinutes(5));
+        if (limited != null) return limited;
         try {
             DemoUser user = demoOtp.verify(request.challengeId, request.code, request.displayName);
             session.setAttribute("demoUserId", user.getId());
@@ -72,7 +86,11 @@ public class ApiController {
         if (readOnlyPreview) return Map.of("authenticated", true, "guestMode", true,
                 "displayName", "Guest Explorer", "contact", "Guest preview");
         Object id = session.getAttribute("demoUserId");
-        if (!(id instanceof Long userId)) return Map.of("authenticated", false);
+        if (!(id instanceof Long userId)) {
+            if (publicDemo) return Map.of("authenticated", true, "guestMode", true,
+                    "displayName", "Guest Explorer", "contact", "Temporary guest session");
+            return Map.of("authenticated", false);
+        }
         return demoUsers.findById(userId)
                 .<Map<String, Object>>map(user -> Map.of("authenticated", true,
                         "displayName", user.getDisplayName(), "contact", user.getContact()))
@@ -106,13 +124,21 @@ public class ApiController {
      * and inject it into the mesh at the given device.
      */
     @PostMapping("/demo/send")
-    public ResponseEntity<?> demoSend(@RequestBody DemoSendRequest req) throws Exception {
+    public ResponseEntity<?> demoSend(@RequestBody DemoSendRequest req, HttpSession session) throws Exception {
         if (readOnlyPreview) return previewLocked();
+        ResponseEntity<?> limited = rateLimit(session, "demo-send", 8, 30, Duration.ofMinutes(1));
+        if (limited != null) return limited;
+        limited = rateLimit(session, "demo-send-daily", 500, 500, Duration.ofHours(24));
+        if (limited != null) return limited;
         if (req.senderVpa == null || req.receiverVpa == null || req.amount == null) {
             return ResponseEntity.badRequest().body(Map.of("error", "sender, recipient and amount are required"));
         }
-        if (req.senderVpa.equals(req.receiverVpa) || req.amount.signum() <= 0) {
+        if (req.senderVpa.equals(req.receiverVpa) || req.amount.signum() <= 0
+                || req.amount.scale() > 2 || req.amount.compareTo(new BigDecimal("500.00")) > 0) {
             return ResponseEntity.badRequest().body(Map.of("error", "payment details are invalid"));
+        }
+        if (req.ttl != null && (req.ttl < 1 || req.ttl > 5)) {
+            return ResponseEntity.badRequest().body(Map.of("error", "packet TTL must be between 1 and 5"));
         }
         if (!accountRepo.existsById(req.senderVpa) || !accountRepo.existsById(req.receiverVpa)) {
             return ResponseEntity.badRequest().body(Map.of("error", "unknown demo account"));
@@ -121,7 +147,7 @@ public class ApiController {
                 req.senderVpa, req.receiverVpa, req.amount, "offline-demo",
                 req.ttl == null ? 5 : req.ttl);
 
-        String startDevice = req.startDevice == null ? "phone-alice" : req.startDevice;
+        String startDevice = "phone-alice";
         mesh.inject(startDevice, packet);
 
         return ResponseEntity.ok(Map.of(
@@ -163,13 +189,26 @@ public class ApiController {
     }
 
     @PostMapping("/mesh/gossip")
-    public ResponseEntity<?> meshGossip() {
+    public ResponseEntity<?> meshGossip(HttpSession session) {
         if (readOnlyPreview) return previewLocked();
+        if (publicDemo) return ResponseEntity.status(403).body(Map.of("error", "Use the packet-specific demo flow."));
+        ResponseEntity<?> limited = rateLimit(session, "mesh-gossip", 12, 180, Duration.ofMinutes(1));
+        if (limited != null) return limited;
         MeshSimulatorService.GossipResult r = mesh.gossipOnce();
         return ResponseEntity.ok(Map.of(
                 "transfers", r.transfers(),
                 "deviceCounts", r.deviceCounts()
         ));
+    }
+
+    @PostMapping("/mesh/gossip/{packetId}")
+    public ResponseEntity<?> meshGossipPacket(@PathVariable String packetId, HttpSession session) {
+        if (readOnlyPreview) return previewLocked();
+        ResponseEntity<?> limited = rateLimit(session, "mesh-gossip", 12, 180, Duration.ofMinutes(1));
+        if (limited != null) return limited;
+        if (!mesh.containsPacket(packetId)) return ResponseEntity.badRequest().body(Map.of("error", "packet not found"));
+        MeshSimulatorService.GossipResult r = mesh.gossipPacket(packetId);
+        return ResponseEntity.ok(Map.of("transfers", r.transfers(), "deviceCounts", r.deviceCounts()));
     }
 
     /**
@@ -181,8 +220,11 @@ public class ApiController {
      * concurrent POSTs of the same ciphertext, and only one should settle.
      */
     @PostMapping("/mesh/flush")
-    public ResponseEntity<?> meshFlush() {
+    public ResponseEntity<?> meshFlush(HttpSession session) {
         if (readOnlyPreview) return previewLocked();
+        if (publicDemo) return ResponseEntity.status(403).body(Map.of("error", "Use the packet-specific demo flow."));
+        ResponseEntity<?> limited = rateLimit(session, "mesh-flush", 12, 180, Duration.ofMinutes(1));
+        if (limited != null) return limited;
         List<MeshSimulatorService.BridgeUpload> uploads = mesh.collectBridgeUploads();
 
         List<Map<String, Object>> results = new ArrayList<>();
@@ -207,9 +249,34 @@ public class ApiController {
         ));
     }
 
+    @PostMapping("/mesh/flush/{packetId}")
+    public ResponseEntity<?> meshFlushPacket(@PathVariable String packetId, HttpSession session) {
+        if (readOnlyPreview) return previewLocked();
+        ResponseEntity<?> limited = rateLimit(session, "mesh-flush", 12, 180, Duration.ofMinutes(1));
+        if (limited != null) return limited;
+        List<MeshSimulatorService.BridgeUpload> uploads = mesh.collectBridgeUploads(packetId);
+        List<Map<String, Object>> results = new ArrayList<>();
+        uploads.parallelStream().forEach(up -> {
+            BridgeIngestionService.IngestResult result =
+                    bridge.ingest(up.packet(), up.bridgeNodeId(), 5 - up.packet().getTtl());
+            synchronized (results) {
+                results.add(Map.of(
+                        "bridgeNode", up.bridgeNodeId(),
+                        "packetId", packetId.substring(0, Math.min(8, packetId.length())),
+                        "outcome", result.outcome(),
+                        "reason", result.reason() == null ? "" : result.reason(),
+                        "transactionId", result.transactionId() == null ? -1 : result.transactionId()
+                ));
+            }
+        });
+        if (!uploads.isEmpty()) mesh.removePacket(packetId);
+        return ResponseEntity.ok(Map.of("uploadsAttempted", uploads.size(), "results", results));
+    }
+
     @PostMapping("/mesh/reset")
     public ResponseEntity<?> meshReset() {
         if (readOnlyPreview) return previewLocked();
+        if (publicDemo) return ResponseEntity.status(403).body(Map.of("error", "Mesh reset is disabled in the shared public sandbox."));
         mesh.resetMesh();
         idempotency.clear();
         return ResponseEntity.ok(Map.of("status", "mesh and idempotency cache cleared"));
@@ -226,9 +293,16 @@ public class ApiController {
     public ResponseEntity<?> ingest(
             @RequestBody MeshPacket packet,
             @RequestHeader(value = "X-Bridge-Node-Id", defaultValue = "unknown") String bridgeNodeId,
-            @RequestHeader(value = "X-Hop-Count", defaultValue = "0") int hopCount) {
+            @RequestHeader(value = "X-Hop-Count", defaultValue = "0") int hopCount,
+            HttpSession session) {
 
         if (readOnlyPreview) return previewLocked();
+        if (publicDemo) return ResponseEntity.status(403).body(Map.of("error", "Direct bridge ingestion is disabled in the shared public sandbox."));
+        ResponseEntity<?> limited = rateLimit(session, "bridge-ingest", 10, 120, Duration.ofMinutes(1));
+        if (limited != null) return limited;
+        if (packet.getCiphertext() == null || packet.getCiphertext().length() > 16_384) {
+            return ResponseEntity.badRequest().body(Map.of("error", "packet is invalid or too large"));
+        }
 
         BridgeIngestionService.IngestResult r = bridge.ingest(packet, bridgeNodeId, hopCount);
         return ResponseEntity.ok(r);
@@ -249,5 +323,19 @@ public class ApiController {
     private ResponseEntity<Map<String, String>> previewLocked() {
         return ResponseEntity.status(403).body(Map.of("error",
                 "This public preview is guest-only and read-only. Run the app locally for the writable simulator."));
+    }
+
+    private ResponseEntity<Map<String, String>> guestOnly() {
+        return ResponseEntity.status(403).body(Map.of("error",
+                "No sign-in is needed for the public sandbox. Continue as a guest; no contact details are collected."));
+    }
+
+    private ResponseEntity<?> rateLimit(HttpSession session, String action,
+                                        int perSession, int globalLimit, Duration window) {
+        if (!publicDemo) return null;
+        long retry = rateLimiter.retryAfterSeconds(session.getId(), action, perSession, globalLimit, window);
+        if (retry == 0) return null;
+        return ResponseEntity.status(429).header("Retry-After", Long.toString(retry))
+                .body(Map.of("error", "Public demo rate limit reached. Please try again in " + retry + " seconds."));
     }
 }

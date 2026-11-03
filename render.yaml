@@ -8,6 +8,8 @@ services:
     healthCheckPath: /api/health
     envVars:
       - key: RELAY_DEMO_READ_ONLY
+        value: "false"
+      - key: RELAY_DEMO_PUBLIC
         value: "true"
       - key: H2_CONSOLE_ENABLED
         value: "false"

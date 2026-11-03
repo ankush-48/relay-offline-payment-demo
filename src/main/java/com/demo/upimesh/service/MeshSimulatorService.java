@@ -99,6 +99,39 @@ public class MeshSimulatorService {
         return new GossipResult(transfers, snapshotMap());
     }
 
+    /** Forward only the packet belonging to one visitor's current demo payment. */
+    public synchronized GossipResult gossipPacket(String packetId) {
+        int transfers = 0;
+        List<VirtualDevice> deviceList = new ArrayList<>(devices.values());
+        Map<String, MeshPacket> snapshot = new HashMap<>();
+        for (VirtualDevice device : deviceList) {
+            device.getHeldPackets().stream()
+                    .filter(packet -> packetId.equals(packet.getPacketId()))
+                    .findFirst()
+                    .ifPresent(packet -> snapshot.put(device.getDeviceId(), packet));
+        }
+        for (VirtualDevice source : deviceList) {
+            MeshPacket packet = snapshot.get(source.getDeviceId());
+            if (packet == null || packet.getTtl() <= 0) continue;
+            for (VirtualDevice destination : deviceList) {
+                if (destination == source || destination.holds(packetId)) continue;
+                MeshPacket copy = new MeshPacket();
+                copy.setPacketId(packet.getPacketId());
+                copy.setTtl(packet.getTtl() - 1);
+                copy.setCreatedAt(packet.getCreatedAt());
+                copy.setCiphertext(packet.getCiphertext());
+                destination.hold(copy);
+                transfers++;
+            }
+        }
+        log.info("Packet-specific gossip complete for {}: {} transfers", packetId, transfers);
+        return new GossipResult(transfers, snapshotMap());
+    }
+
+    public boolean containsPacket(String packetId) {
+        return devices.values().stream().anyMatch(device -> device.holds(packetId));
+    }
+
     public Map<String, Integer> snapshotMap() {
         Map<String, Integer> m = new LinkedHashMap<>();
         for (VirtualDevice d : devices.values()) {
@@ -120,6 +153,22 @@ public class MeshSimulatorService {
             }
         }
         return out;
+    }
+
+    public List<BridgeUpload> collectBridgeUploads(String packetId) {
+        List<BridgeUpload> out = new ArrayList<>();
+        for (VirtualDevice device : devices.values()) {
+            if (device.hasInternet()) {
+                device.getHeldPackets().stream()
+                        .filter(packet -> packetId.equals(packet.getPacketId()))
+                        .forEach(packet -> out.add(new BridgeUpload(device.getDeviceId(), packet)));
+            }
+        }
+        return out;
+    }
+
+    public void removePacket(String packetId) {
+        devices.values().forEach(device -> device.remove(packetId));
     }
 
     public void resetMesh() {

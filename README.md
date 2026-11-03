@@ -53,7 +53,7 @@ The interface distinguishes a request waiting on the device from a result return
 - **Server-side ingestion** with freshness checks, duplicate detection, and idempotency.
 - **Simulated settlement** with balance validation and transactional ledger updates.
 - **Network Monitor** showing API reachability, response time, mesh state, and sync information.
-- **Read-only hosted preview** so the public demo cannot submit payment, mesh, or OTP mutations.
+- **Session-isolated public demo** with bounded simulated payments and per-visitor activity.
 
 ## Technology
 
@@ -105,6 +105,10 @@ To run the guest-only, read-only preview locally:
 docker compose -f compose.yaml -f compose.preview.yaml up --build
 ```
 
+## Public demo
+
+The hosted version is an interactive guest sandbox. Each browser session receives its own temporary demo workspace with a separate simulated wallet, accounts, activity, and mesh. Visitors can try simulated payments up to ₹500 without creating an account. The in-memory data expires and may reset when the service restarts or sleeps. Requests are rate-limited; direct bridge ingestion, global mesh controls, and contact-based OTP sign-in are disabled. No contact details are collected, and no real money or UPI transaction is involved. The free host may sleep when idle, so its first request after inactivity can take longer.
+
 ## Project layout
 
 ```text
@@ -126,9 +130,9 @@ src/
 ## Design and safety notes
 
 - Virtual devices model packet forwarding; they do not use Bluetooth or real handsets.
-- The hosted demo runs in read-only mode and reports this at `/api/health`.
+- The hosted demo is a bounded public simulator, not a real payment service.
 - H2 is an in-memory demo database. Its data is not intended to persist across service restarts.
-- Demo sign-in is not production authentication and does not deliver a real OTP.
+- Demo identity is a temporary browser session, not production authentication; no real OTP is delivered.
 - Browser storage is used for this demo queue, not as secure wallet storage.
 - A genuine offline payment system would need a trusted mobile client, a financial authorization model, and integration with regulated payment infrastructure.
 

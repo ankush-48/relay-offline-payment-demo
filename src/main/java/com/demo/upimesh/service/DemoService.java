@@ -34,10 +34,12 @@ public class DemoService {
     @PostConstruct
     public void seedAccounts() {
         if (accounts.count() == 0) {
-            accounts.save(new Account("alice@demo", "Alice",   new BigDecimal("5000.00")));
-            accounts.save(new Account("bob@demo",   "Bob",     new BigDecimal("1000.00")));
-            accounts.save(new Account("carol@demo", "Carol",   new BigDecimal("2500.00")));
-            accounts.save(new Account("dave@demo",  "Dave",    new BigDecimal("500.00")));
+            // Larger fictional balances keep the shared public sandbox useful
+            // for many visitors; these are not linked to real funds.
+            accounts.save(new Account("alice@demo", "Alice",   new BigDecimal("50000.00")));
+            accounts.save(new Account("bob@demo",   "Bob",     new BigDecimal("10000.00")));
+            accounts.save(new Account("carol@demo", "Carol",   new BigDecimal("25000.00")));
+            accounts.save(new Account("dave@demo",  "Dave",    new BigDecimal("5000.00")));
             log.info("Seeded 4 demo accounts");
         }
     }

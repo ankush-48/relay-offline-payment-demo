@@ -38,6 +38,10 @@ public class VirtualDevice {
         return heldPackets.containsKey(packetId);
     }
 
+    public void remove(String packetId) {
+        heldPackets.remove(packetId);
+    }
+
     public int packetCount() {
         return heldPackets.size();
     }
