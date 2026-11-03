@@ -107,7 +107,7 @@ docker compose -f compose.yaml -f compose.preview.yaml up --build
 
 ## Public demo
 
-The hosted version is an interactive guest sandbox. Each browser session receives its own temporary demo workspace with a separate simulated wallet, accounts, activity, and mesh. Visitors can try simulated payments up to ₹500 without creating an account. The in-memory data expires and may reset when the service restarts or sleeps. Requests are rate-limited; direct bridge ingestion, global mesh controls, and contact-based OTP sign-in are disabled. No contact details are collected, and no real money or UPI transaction is involved. The free host may sleep when idle, so its first request after inactivity can take longer.
+The hosted version is an **interactive guest sandbox with a private workspace per browser session**. Visitors can enter a display name, then explore their own demo wallet, virtual mesh, offline queue, and transaction history. A workspace is temporary, expires after inactivity, and is isolated from other visitors' ledger and mesh data. Transfers are limited to ₹500 and requests are rate-limited. Gmail/SMS verification is not configured, so the public demo asks for no contact details and uses a secure browser session instead. No real money or UPI transaction is involved. The in-memory H2 data resets when the service restarts; the free host may sleep when idle, so its first request can take longer.
 
 ## Project layout
 

@@ -42,13 +42,14 @@ public class ApiController {
     @Autowired private DemoOtpService demoOtp;
     @Autowired private DemoUserRepository demoUsers;
     @Autowired private PublicDemoRateLimiter rateLimiter;
+    @Autowired private PublicDemoWorkspaceService workspaces;
 
     @GetMapping("/health")
     public Map<String, String> health() {
-        String mode = readOnlyPreview ? "READ_ONLY_PREVIEW" : publicDemo ? "PUBLIC_SHARED_SANDBOX" : "SIMULATION";
+        String mode = readOnlyPreview ? "READ_ONLY_PREVIEW" : publicDemo ? "PUBLIC_PRIVATE_SANDBOX" : "SIMULATION";
         return Map.of("status", "UP", "mode", mode,
                 "readOnly", Boolean.toString(readOnlyPreview),
-                "sharedDemo", Boolean.toString(publicDemo),
+                "publicDemo", Boolean.toString(publicDemo),
                 "maxTransferAmount", "500.00");
     }
 
@@ -85,10 +86,14 @@ public class ApiController {
     public Map<String, Object> currentUser(HttpSession session) {
         if (readOnlyPreview) return Map.of("authenticated", true, "guestMode", true,
                 "displayName", "Guest Explorer", "contact", "Guest preview");
+        if (publicDemo) {
+            PublicDemoWorkspaceService.Workspace workspace = workspaces.getOrCreate(session, null);
+            return Map.of("authenticated", true, "guestMode", true,
+                    "displayName", workspace.getDisplayName(), "contact", "Private guest workspace",
+                    "accountVpa", workspace.getAccountVpa(), "publicDemo", true);
+        }
         Object id = session.getAttribute("demoUserId");
         if (!(id instanceof Long userId)) {
-            if (publicDemo) return Map.of("authenticated", true, "guestMode", true,
-                    "displayName", "Guest Explorer", "contact", "Temporary guest session");
             return Map.of("authenticated", false);
         }
         return demoUsers.findById(userId)
@@ -96,6 +101,27 @@ public class ApiController {
                         "displayName", user.getDisplayName(), "contact", user.getContact()))
                 .orElseGet(() -> Map.of("authenticated", false));
     }
+
+    @PostMapping("/auth/guest")
+    public ResponseEntity<?> startGuestWorkspace(@RequestBody GuestWorkspaceRequest request, HttpSession session) {
+        if (readOnlyPreview) return previewLocked();
+        if (!publicDemo) return ResponseEntity.status(403).body(Map.of("error", "Guest workspaces are enabled on the hosted demo."));
+        ResponseEntity<?> limited = rateLimit(session, "guest-workspace", 5, 500, Duration.ofMinutes(5));
+        if (limited != null) return limited;
+        try {
+            PublicDemoWorkspaceService.Workspace workspace = workspaces.getOrCreate(
+                    session, request == null ? null : request.displayName);
+            return ResponseEntity.ok(Map.of("authenticated", true, "guestMode", true,
+                    "displayName", workspace.getDisplayName(), "contact", "Private guest workspace",
+                    "accountVpa", workspace.getAccountVpa(), "publicDemo", true));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (PublicDemoWorkspaceService.WorkspaceCapacityException e) {
+            return ResponseEntity.status(503).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    public static class GuestWorkspaceRequest { public String displayName; }
 
     @PostMapping("/auth/logout")
     public Map<String, String> logout(HttpSession session) {
@@ -133,6 +159,12 @@ public class ApiController {
         if (req.senderVpa == null || req.receiverVpa == null || req.amount == null) {
             return ResponseEntity.badRequest().body(Map.of("error", "sender, recipient and amount are required"));
         }
+        if (publicDemo) {
+            PublicDemoWorkspaceService.Workspace workspace = workspaces.getOrCreate(session, null);
+            if (!workspaces.owns(workspace, req.senderVpa) || !workspaces.owns(workspace, req.receiverVpa)) {
+                return ResponseEntity.status(403).body(Map.of("error", "Choose accounts from your private demo workspace."));
+            }
+        }
         if (req.senderVpa.equals(req.receiverVpa) || req.amount.signum() <= 0
                 || req.amount.scale() > 2 || req.amount.compareTo(new BigDecimal("500.00")) > 0) {
             return ResponseEntity.badRequest().body(Map.of("error", "payment details are invalid"));
@@ -148,7 +180,7 @@ public class ApiController {
                 req.ttl == null ? 5 : req.ttl);
 
         String startDevice = "phone-alice";
-        mesh.inject(startDevice, packet);
+        activeMesh(session).inject(startDevice, packet);
 
         return ResponseEntity.ok(Map.of(
                 "packetId", packet.getPacketId(),
@@ -170,9 +202,10 @@ public class ApiController {
     // -------------------------------------------------------------- mesh sim
 
     @GetMapping("/mesh/state")
-    public Map<String, Object> meshState() {
+    public Map<String, Object> meshState(HttpSession session) {
+        MeshSimulatorService activeMesh = activeMesh(session);
         List<Map<String, Object>> deviceData = new ArrayList<>();
-        for (VirtualDevice d : mesh.getDevices()) {
+        for (VirtualDevice d : activeMesh.getDevices()) {
             deviceData.add(Map.of(
                     "deviceId", d.getDeviceId(),
                     "hasInternet", d.hasInternet(),
@@ -184,7 +217,9 @@ public class ApiController {
         }
         return Map.of(
                 "devices", deviceData,
-                "idempotencyCacheSize", idempotency.size()
+                "idempotencyCacheSize", publicDemo
+                        ? deviceData.stream().mapToInt(data -> (Integer) data.get("packetCount")).sum()
+                        : idempotency.size()
         );
     }
 
@@ -206,8 +241,9 @@ public class ApiController {
         if (readOnlyPreview) return previewLocked();
         ResponseEntity<?> limited = rateLimit(session, "mesh-gossip", 12, 180, Duration.ofMinutes(1));
         if (limited != null) return limited;
-        if (!mesh.containsPacket(packetId)) return ResponseEntity.badRequest().body(Map.of("error", "packet not found"));
-        MeshSimulatorService.GossipResult r = mesh.gossipPacket(packetId);
+        MeshSimulatorService activeMesh = activeMesh(session);
+        if (!activeMesh.containsPacket(packetId)) return ResponseEntity.badRequest().body(Map.of("error", "packet not found"));
+        MeshSimulatorService.GossipResult r = activeMesh.gossipPacket(packetId);
         return ResponseEntity.ok(Map.of("transfers", r.transfers(), "deviceCounts", r.deviceCounts()));
     }
 
@@ -254,7 +290,8 @@ public class ApiController {
         if (readOnlyPreview) return previewLocked();
         ResponseEntity<?> limited = rateLimit(session, "mesh-flush", 12, 180, Duration.ofMinutes(1));
         if (limited != null) return limited;
-        List<MeshSimulatorService.BridgeUpload> uploads = mesh.collectBridgeUploads(packetId);
+        MeshSimulatorService activeMesh = activeMesh(session);
+        List<MeshSimulatorService.BridgeUpload> uploads = activeMesh.collectBridgeUploads(packetId);
         List<Map<String, Object>> results = new ArrayList<>();
         uploads.parallelStream().forEach(up -> {
             BridgeIngestionService.IngestResult result =
@@ -269,14 +306,14 @@ public class ApiController {
                 ));
             }
         });
-        if (!uploads.isEmpty()) mesh.removePacket(packetId);
+        if (!uploads.isEmpty()) activeMesh.removePacket(packetId);
         return ResponseEntity.ok(Map.of("uploadsAttempted", uploads.size(), "results", results));
     }
 
     @PostMapping("/mesh/reset")
     public ResponseEntity<?> meshReset() {
         if (readOnlyPreview) return previewLocked();
-        if (publicDemo) return ResponseEntity.status(403).body(Map.of("error", "Mesh reset is disabled in the shared public sandbox."));
+        if (publicDemo) return ResponseEntity.status(403).body(Map.of("error", "Mesh reset is disabled in the public guest workspaces."));
         mesh.resetMesh();
         idempotency.clear();
         return ResponseEntity.ok(Map.of("status", "mesh and idempotency cache cleared"));
@@ -297,7 +334,7 @@ public class ApiController {
             HttpSession session) {
 
         if (readOnlyPreview) return previewLocked();
-        if (publicDemo) return ResponseEntity.status(403).body(Map.of("error", "Direct bridge ingestion is disabled in the shared public sandbox."));
+        if (publicDemo) return ResponseEntity.status(403).body(Map.of("error", "Direct bridge ingestion is disabled in public guest workspaces."));
         ResponseEntity<?> limited = rateLimit(session, "bridge-ingest", 10, 120, Duration.ofMinutes(1));
         if (limited != null) return limited;
         if (packet.getCiphertext() == null || packet.getCiphertext().length() > 16_384) {
@@ -311,13 +348,23 @@ public class ApiController {
     // ------------------------------------------------------------- accounts
 
     @GetMapping("/accounts")
-    public List<Account> listAccounts() {
+    public List<Account> listAccounts(HttpSession session) {
+        if (publicDemo) return workspaces.getAccounts(workspaces.getOrCreate(session, null));
         return accountRepo.findAll();
     }
 
     @GetMapping("/transactions")
-    public List<Transaction> listTransactions() {
+    public List<Transaction> listTransactions(HttpSession session) {
+        if (publicDemo) {
+            PublicDemoWorkspaceService.Workspace workspace = workspaces.getOrCreate(session, null);
+            return txRepo.findTop20BySenderVpaInOrReceiverVpaInOrderByIdDesc(
+                    workspace.getVpas(), workspace.getVpas());
+        }
         return txRepo.findTop20ByOrderByIdDesc();
+    }
+
+    private MeshSimulatorService activeMesh(HttpSession session) {
+        return publicDemo ? workspaces.getMesh(session) : mesh;
     }
 
     private ResponseEntity<Map<String, String>> previewLocked() {

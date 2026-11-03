@@ -6,15 +6,15 @@
 
 ## 2. Show the product and sign-in (45 seconds)
 
-Open the landing page and point out the product lifecycle, architecture sections, and explicit simulation boundary. Choose **Sign in**, enter a display name and email or phone, request the demo OTP, and use the code shown on the page. Explain that real email/SMS delivery and third-party identity are not implemented.
+Open the landing page and point out the product lifecycle, architecture sections, and explicit simulation boundary. Choose **Guest access**, enter a display name, and open a private browser-session workspace. Explain that this is temporary session identity: Gmail/SMS verification and persistent third-party identity are not configured, and no contact details are collected.
 
 ## 3. Walk through the dashboard (60 seconds)
 
-Show the seeded accounts and demo balance, recent ledger transactions, analytics, and the responsive navigation. Open **Network Monitor** to show the live health response, measured API latency, five virtual nodes, public-key fingerprint, and in-session event trace.
+Show the private demo accounts and wallet balance, recent workspace transactions, analytics, and the responsive navigation. Explain that a separate session gets separate accounts, ledger history, and mesh. Open **Network Monitor** to show the live health response, measured API latency, five virtual nodes, public-key fingerprint, and in-session event trace.
 
 ## 4. Trace a request (90 seconds)
 
-Open **Send money** and create a small request from `alice@demo` to `bob@demo`. Explain the visible states: waiting locally, syncing, then confirmed by the demo server or rejected by the demo server. Open **Transactions** to show that only server-recorded results appear in the ledger. Explain that the simulator creates the encrypted packet on the server, rather than on a trusted phone.
+Open **Send money** and create a small request from your workspace wallet to one of its demo contacts. Explain the visible states: waiting locally, syncing, then confirmed by the demo server or rejected by the demo server. Open **Transactions** to show that only server-recorded results for this workspace appear in the ledger. Explain that the simulator creates the encrypted packet on the server, rather than on a trusted phone.
 
 To demonstrate queued behavior, use browser offline mode before submitting a request, then return online and choose **Sync queue**. Point out the retry timing if the server is temporarily unavailable. An offline request is not a completed or guaranteed payment.
 

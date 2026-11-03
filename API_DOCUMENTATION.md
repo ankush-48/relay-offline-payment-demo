@@ -2,6 +2,8 @@
 
 Base URL: `http://localhost:8080`. JSON request/response bodies are shown below. The API is a local simulator; the payment endpoints do not call UPI or banks.
 
+In hosted public mode, workspace data is scoped to the HTTP session. A visitor may set a display name with `POST /api/auth/guest`; no email address, phone number, or OTP is used. The workspace has its own demo accounts, transactions, and mesh. Guest workspaces expire after inactivity and are lost when the in-memory service restarts.
+
 ## Endpoint reference
 
 | Method | Path | Purpose |
@@ -9,11 +11,12 @@ Base URL: `http://localhost:8080`. JSON request/response bodies are shown below.
 | `GET` | `/api/health` | Liveness and `SIMULATION` mode |
 | `POST` | `/api/auth/request-otp` | Generate local demo OTP challenge |
 | `POST` | `/api/auth/verify-otp` | Verify challenge, save entered display name, establish HTTP session |
+| `POST` | `/api/auth/guest` | Create or rename the current hosted guest workspace |
 | `GET` | `/api/auth/me` | Current session profile |
 | `POST` | `/api/auth/logout` | Invalidate current session |
 | `GET` | `/api/server-key` | Current process public key and crypto profile |
-| `GET` | `/api/accounts` | Seeded simulated account balances |
-| `GET` | `/api/transactions` | Latest 20 ledger records |
+| `GET` | `/api/accounts` | Current workspace accounts in hosted mode; seeded accounts locally |
+| `GET` | `/api/transactions` | Latest 20 current-workspace records in hosted mode; all demo records locally |
 | `POST` | `/api/demo/send` | Server-side demo packet creation and mesh injection |
 | `GET` | `/api/mesh/state` | Virtual device and packet counts |
 | `POST` | `/api/mesh/gossip` | One virtual gossip round |
@@ -32,13 +35,15 @@ Content-Type: application/json
 {"contact":"person@example.com"}
 ```
 
-Response includes `challengeId`, `demoOtp`, `expiresInSeconds`, and `deliveryStatus: "DEMO_ONLY_NOT_SENT"`. The code is shown only for local demonstration; no email/SMS is sent. Challenge lifetime is five minutes, with five attempts and a resend delay. Verification:
+Response includes `challengeId`, `demoOtp`, `expiresInSeconds`, and `deliveryStatus: "DEMO_ONLY_NOT_SENT"`. The code is shown only for local demonstration; no email/SMS is sent. Public mode disables OTP sign-in. Challenge lifetime is five minutes, with five attempts and a resend delay. Verification:
 
 ```json
 {"challengeId":"<challengeId>","code":"<demoOtp>","displayName":"Alex Morgan"}
 ```
 
-Successful verification creates an HTTP session and returns `authenticated`, `displayName`, and normalized `contact`. This is not real contact verification or production authentication. Payment endpoints do not currently require that session.
+Successful local verification creates an HTTP session and returns `authenticated`, `displayName`, and normalized `contact`. This is not real contact verification or production authentication.
+
+For the hosted guest workspace, send `{"displayName":"Alex Morgan"}` to `POST /api/auth/guest`. The response contains the temporary `accountVpa`. Keep the session cookie to use the same workspace. Workspace state is not a persistent account and cannot be recovered after cookies or the in-memory service are cleared.
 
 ## Create and deliver a simulated payment
 
@@ -49,7 +54,7 @@ Content-Type: application/json
 {"senderVpa":"alice@demo","receiverVpa":"bob@demo","amount":25.00,"ttl":5,"startDevice":"phone-alice"}
 ```
 
-A valid request returns `packetId`, `ciphertextPreview`, `ttl`, and `injectedAt`. Sender and recipient must exist, be distinct, and amount must be positive. `pin` is accepted for compatibility but is neither authenticated nor verified.
+A valid request returns `packetId`, `ciphertextPreview`, `ttl`, and `injectedAt`. Sender and recipient must exist, be distinct, and amount must be positive. Public mode additionally requires both accounts to belong to the current workspace, limits transfers to ₹500 and rate-limits writes. `pin` is accepted for compatibility but is neither authenticated nor verified.
 
 Run the demo stages:
 
@@ -57,6 +62,8 @@ Run the demo stages:
 curl -X POST http://localhost:8080/api/mesh/gossip
 curl -X POST http://localhost:8080/api/mesh/flush
 ```
+
+The hosted UI uses `/api/mesh/gossip/{packetId}` and `/api/mesh/flush/{packetId}` so it only processes the current visitor's packet. Public mode disables global gossip/flush, mesh reset, and direct bridge ingestion.
 
 The flush response lists an outcome for each bridge upload. Outcomes include `SETTLED`, `REJECTED`, `DUPLICATE_DROPPED`, and `INVALID`. `SETTLED` means only that the local simulated ledger updated. `REJECTED` includes insufficient balance. `INVALID` covers invalid ciphertext, stale/future packets, and processing errors.
 
@@ -77,4 +84,4 @@ Default local storage is file-backed H2. Override `DB_URL`, `DB_USERNAME`, and `
 
 ## Errors and safety
 
-Validation errors from demo endpoints use HTTP 400 with a JSON `error` message. `/api/bridge/ingest` returns an ingestion result record with an outcome/reason. Server errors and transport failures are not settlement confirmations. This API is unauthenticated for payment demo routes and is not suitable for internet exposure or real payment processing.
+Validation errors from demo endpoints use HTTP 400 with a JSON `error` message. Public demo writes can return HTTP 429 with a `Retry-After` header. `/api/bridge/ingest` returns an ingestion result record with an outcome/reason locally and is disabled in public mode. Server errors and transport failures are not settlement confirmations. Public session scoping and rate limits are for an educational demo, not production authorization or real payment processing.
